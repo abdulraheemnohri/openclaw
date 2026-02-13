@@ -92,6 +92,11 @@ function candidateBinDirs(opts: EnsureOpenClawPathOpts): string[] {
   candidates.push(path.join(homeDir, ".local", "share", "pnpm"));
   candidates.push(path.join(homeDir, ".bun", "bin"));
   candidates.push(path.join(homeDir, ".yarn", "bin"));
+
+  if (process.env.PREFIX) {
+    candidates.push(path.join(process.env.PREFIX, "bin"));
+  }
+
   candidates.push("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin");
 
   return candidates.filter(isDirectory);

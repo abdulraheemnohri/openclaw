@@ -2,11 +2,13 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { isTermux } from "../infra/termux.js";
 import {
   GATEWAY_SERVICE_KIND,
   GATEWAY_SERVICE_MARKER,
   resolveGatewayLaunchAgentLabel,
   resolveGatewaySystemdServiceName,
+  resolveGatewayTermuxServiceName,
   resolveGatewayWindowsTaskName,
 } from "./constants.js";
 
@@ -36,6 +38,10 @@ export function renderGatewayServiceCleanupHints(
       return [`launchctl bootout gui/$UID/${label}`, `rm ~/Library/LaunchAgents/${label}.plist`];
     }
     case "linux": {
+      if (isTermux()) {
+        const unit = resolveGatewayTermuxServiceName(profile);
+        return [`sv-disable ${unit}`, `rm -rf /data/data/com.termux/files/usr/var/service/${unit}`];
+      }
       const unit = resolveGatewaySystemdServiceName(profile);
       return [
         `systemctl --user disable --now ${unit}.service`,
@@ -195,6 +201,47 @@ async function scanLaunchdDir(params: {
       scope: params.scope,
       marker,
       legacy: marker !== "openclaw" || isLegacyLabel(label),
+    });
+  }
+
+  return results;
+}
+
+async function scanTermuxServicesDir(params: {
+  dir: string;
+  scope: "user" | "system";
+}): Promise<ExtraGatewayService[]> {
+  const results: ExtraGatewayService[] = [];
+  let entries: string[] = [];
+  try {
+    entries = await fs.readdir(params.dir);
+  } catch {
+    return results;
+  }
+
+  for (const entry of entries) {
+    if (entry === resolveGatewayTermuxServiceName()) {
+      continue;
+    }
+    const fullPath = path.join(params.dir, entry);
+    const runScriptPath = path.join(fullPath, "run");
+    let contents = "";
+    try {
+      contents = await fs.readFile(runScriptPath, "utf8");
+    } catch {
+      continue;
+    }
+    const marker = detectMarker(contents);
+    if (!marker) {
+      continue;
+    }
+    results.push({
+      platform: "linux",
+      label: entry,
+      detail: `termux-service: ${fullPath}`,
+      scope: params.scope,
+      marker,
+      legacy: marker !== "openclaw",
     });
   }
 
@@ -371,6 +418,21 @@ export async function findExtraGatewayServices(
   }
 
   if (process.platform === "linux") {
+    if (isTermux()) {
+      try {
+        const prefix = process.env.PREFIX || "/data/data/com.termux/files/usr";
+        const servicesDir = path.join(prefix, "var", "service");
+        for (const svc of await scanTermuxServicesDir({
+          dir: servicesDir,
+          scope: "user",
+        })) {
+          push(svc);
+        }
+      } catch {
+        return results;
+      }
+      return results;
+    }
     try {
       const home = resolveHomeDir(env);
       const userDir = path.join(home, ".config", "systemd", "user");

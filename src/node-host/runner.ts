@@ -41,10 +41,12 @@ import {
 } from "../infra/exec-host.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
+import { isTermux } from "../infra/termux.js";
 import { detectMime } from "../media/mime.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
+import { termuxCameraList, termuxCameraSnap, termuxLocationGet, termuxNotify } from "./termux.js";
 import { withTimeout } from "./with-timeout.js";
 
 type NodeHostRunOptions = {
@@ -573,6 +575,21 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(`node host PATH: ${pathEnv}`);
 
+  const isTermuxHost = isTermux();
+  const caps = ["system", ...(browserProxyEnabled ? ["browser"] : [])];
+  const commands = [
+    "system.run",
+    "system.which",
+    "system.execApprovals.get",
+    "system.execApprovals.set",
+    ...(browserProxyEnabled ? ["browser.proxy"] : []),
+  ];
+
+  if (isTermuxHost) {
+    caps.push("camera", "location", "notifications");
+    commands.push("system.notify", "camera.snap", "camera.list", "location.get");
+  }
+
   const client = new GatewayClient({
     url,
     token: token?.trim() || undefined,
@@ -585,14 +602,8 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
     mode: GATEWAY_CLIENT_MODES.NODE,
     role: "node",
     scopes: [],
-    caps: ["system", ...(browserProxyEnabled ? ["browser"] : [])],
-    commands: [
-      "system.run",
-      "system.which",
-      "system.execApprovals.get",
-      "system.execApprovals.set",
-      ...(browserProxyEnabled ? ["browser.proxy"] : []),
-    ],
+    caps,
+    commands,
     pathEnv,
     permissions: undefined,
     deviceIdentity: loadOrCreateDeviceIdentity(),
@@ -634,6 +645,63 @@ async function handleInvoke(
   skillBins: SkillBinsCache,
 ) {
   const command = String(frame.command ?? "");
+
+  if (isTermux() && command === "system.notify") {
+    try {
+      const params = decodeParams<{ title?: string; body?: string }>(frame.paramsJSON);
+      await termuxNotify({ title: params.title, body: params.body });
+      await sendInvokeResult(client, frame, { ok: true });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "camera.list") {
+    try {
+      const payload = await termuxCameraList();
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "camera.snap") {
+    try {
+      const params = decodeParams<{ facing?: "front" | "back"; deviceId?: string }>(
+        frame.paramsJSON,
+      );
+      const payload = await termuxCameraSnap(params);
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "location.get") {
+    try {
+      const payload = await termuxLocationGet({});
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
   if (command === "system.execApprovals.get") {
     try {
       ensureExecApprovals();

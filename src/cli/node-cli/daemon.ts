@@ -8,12 +8,14 @@ import { resolveIsNixMode } from "../../config/paths.js";
 import {
   resolveNodeLaunchAgentLabel,
   resolveNodeSystemdServiceName,
+  resolveNodeTermuxServiceName,
   resolveNodeWindowsTaskName,
 } from "../../daemon/constants.js";
 import { resolveGatewayLogPaths } from "../../daemon/launchd.js";
 import { resolveNodeService } from "../../daemon/node-service.js";
 import { renderSystemdUnavailableHints } from "../../daemon/systemd-hints.js";
 import { isSystemdUserServiceAvailable } from "../../daemon/systemd.js";
+import { isTermux } from "../../infra/termux.js";
 import { isWSL } from "../../infra/wsl.js";
 import { loadNodeHostConfig } from "../../node-host/config.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -55,6 +57,9 @@ function renderNodeServiceStartHints(): string[] {
         `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/${resolveNodeLaunchAgentLabel()}.plist`,
       ];
     case "linux":
+      if (isTermux()) {
+        return [...base, `sv start ${resolveNodeTermuxServiceName()}`];
+      }
       return [...base, `systemctl --user start ${resolveNodeSystemdServiceName()}.service`];
     case "win32":
       return [...base, `schtasks /Run /TN "${resolveNodeWindowsTaskName()}"`];
@@ -72,6 +77,13 @@ function buildNodeRuntimeHints(env: NodeJS.ProcessEnv = process.env): string[] {
     ];
   }
   if (process.platform === "linux") {
+    if (isTermux()) {
+      const service = resolveNodeTermuxServiceName();
+      return [
+        `Logs: sv status ${service}`,
+        `Logs: tail -f /data/data/com.termux/files/home/.openclaw/logs/${service}/current`,
+      ];
+    }
     const unit = resolveNodeSystemdServiceName();
     return [`Logs: journalctl --user -u ${unit}.service -n 200 --no-pager`];
   }

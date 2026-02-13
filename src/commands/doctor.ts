@@ -48,6 +48,7 @@ import {
   detectLegacyStateMigrations,
   runLegacyStateMigrations,
 } from "./doctor-state-migrations.js";
+import { noteTermuxIssues } from "./doctor-termux.js";
 import { maybeRepairUiProtocolFreshness } from "./doctor-ui.js";
 import { maybeOfferUpdateBeforeDoctor } from "./doctor-update.js";
 import { noteWorkspaceStatus } from "./doctor-workspace-status.js";
@@ -189,6 +190,7 @@ export async function doctorCommand(
 
   await maybeScanExtraGatewayServices(options, runtime, prompter);
   await maybeRepairGatewayServiceConfig(cfg, resolveMode(cfg), runtime, prompter);
+  await noteTermuxIssues();
   await noteMacLaunchAgentOverrides();
   await noteMacLaunchctlGatewayEnvOverrides(cfg);
 

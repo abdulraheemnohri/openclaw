@@ -1,11 +1,13 @@
 // Default service labels (canonical + legacy compatibility)
 export const GATEWAY_LAUNCH_AGENT_LABEL = "ai.openclaw.gateway";
 export const GATEWAY_SYSTEMD_SERVICE_NAME = "openclaw-gateway";
+export const GATEWAY_TERMUX_SERVICE_NAME = "openclaw-gateway";
 export const GATEWAY_WINDOWS_TASK_NAME = "OpenClaw Gateway";
 export const GATEWAY_SERVICE_MARKER = "openclaw";
 export const GATEWAY_SERVICE_KIND = "gateway";
 export const NODE_LAUNCH_AGENT_LABEL = "ai.openclaw.node";
 export const NODE_SYSTEMD_SERVICE_NAME = "openclaw-node";
+export const NODE_TERMUX_SERVICE_NAME = "openclaw-node";
 export const NODE_WINDOWS_TASK_NAME = "OpenClaw Node";
 export const NODE_SERVICE_MARKER = "openclaw";
 export const NODE_SERVICE_KIND = "node";
@@ -48,6 +50,14 @@ export function resolveGatewaySystemdServiceName(profile?: string): string {
   return `openclaw-gateway${suffix}`;
 }
 
+export function resolveGatewayTermuxServiceName(profile?: string): string {
+  const suffix = resolveGatewayProfileSuffix(profile);
+  if (!suffix) {
+    return GATEWAY_TERMUX_SERVICE_NAME;
+  }
+  return `openclaw-gateway${suffix}`;
+}
+
 export function resolveGatewayWindowsTaskName(profile?: string): string {
   const normalized = normalizeGatewayProfile(profile);
   if (!normalized) {
@@ -81,6 +91,10 @@ export function resolveNodeLaunchAgentLabel(): string {
 
 export function resolveNodeSystemdServiceName(): string {
   return NODE_SYSTEMD_SERVICE_NAME;
+}
+
+export function resolveNodeTermuxServiceName(): string {
+  return NODE_TERMUX_SERVICE_NAME;
 }
 
 export function resolveNodeWindowsTaskName(): string {

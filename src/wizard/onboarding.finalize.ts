@@ -28,6 +28,7 @@ import {
 import { resolveGatewayService } from "../daemon/service.js";
 import { isSystemdUserServiceAvailable } from "../daemon/systemd.js";
 import { ensureControlUiAssetsBuilt } from "../infra/control-ui-assets.js";
+import { isTermux } from "../infra/termux.js";
 import { restoreTerminalState } from "../terminal/restore.js";
 import { runTui } from "../tui/tui.js";
 import { resolveUserPath } from "../utils.js";
@@ -62,16 +63,17 @@ export async function finalizeOnboardingWizard(
     }
   };
 
+  const isTermuxHost = isTermux();
   const systemdAvailable =
-    process.platform === "linux" ? await isSystemdUserServiceAvailable() : true;
-  if (process.platform === "linux" && !systemdAvailable) {
+    process.platform === "linux" && !isTermuxHost ? await isSystemdUserServiceAvailable() : true;
+  if (process.platform === "linux" && !systemdAvailable && !isTermuxHost) {
     await prompter.note(
       "Systemd user services are unavailable. Skipping lingering checks and service install.",
       "Systemd",
     );
   }
 
-  if (process.platform === "linux" && systemdAvailable) {
+  if (process.platform === "linux" && systemdAvailable && !isTermuxHost) {
     const { ensureSystemdUserLingerInteractive } = await import("../commands/systemd-linger.js");
     await ensureSystemdUserLingerInteractive({
       runtime,
@@ -101,7 +103,7 @@ export async function finalizeOnboardingWizard(
     });
   }
 
-  if (process.platform === "linux" && !systemdAvailable && installDaemon) {
+  if (process.platform === "linux" && !systemdAvailable && installDaemon && !isTermuxHost) {
     await prompter.note(
       "Systemd user services are unavailable; skipping service install. Use your container supervisor or `docker compose up -d`.",
       "Gateway service",
@@ -238,7 +240,10 @@ export async function finalizeOnboardingWizard(
       "- macOS app (system + notifications)",
       "- iOS app (camera/canvas)",
       "- Android app (camera/canvas)",
-    ].join("\n"),
+      isTermuxHost ? "- Termux API (notifications/camera/location; already supported!)" : undefined,
+    ]
+      .filter(Boolean)
+      .join("\n"),
     "Optional apps",
   );
 

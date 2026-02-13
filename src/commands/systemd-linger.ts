@@ -4,6 +4,7 @@ import {
   isSystemdUserServiceAvailable,
   readSystemdUserLingerStatus,
 } from "../daemon/systemd.js";
+import { isTermux } from "../infra/termux.js";
 import { note } from "../terminal/note.js";
 
 export type LingerPrompter = {
@@ -20,7 +21,7 @@ export async function ensureSystemdUserLingerInteractive(params: {
   prompt?: boolean;
   requireConfirm?: boolean;
 }): Promise<void> {
-  if (process.platform !== "linux") {
+  if (process.platform !== "linux" || isTermux()) {
     return;
   }
   if (params.prompt === false) {
@@ -93,7 +94,7 @@ export async function ensureSystemdUserLingerNonInteractive(params: {
   runtime: RuntimeEnv;
   env?: NodeJS.ProcessEnv;
 }): Promise<void> {
-  if (process.platform !== "linux") {
+  if (process.platform !== "linux" || isTermux()) {
     return;
   }
   const env = params.env ?? process.env;

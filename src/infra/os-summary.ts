@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import os from "node:os";
+import { isTermux } from "./termux.js";
 
 export type OsSummary = {
   platform: NodeJS.Platform;
@@ -28,6 +29,9 @@ export function resolveOsSummary(): OsSummary {
     }
     if (platform === "win32") {
       return `windows ${release} (${arch})`;
+    }
+    if (isTermux()) {
+      return `termux ${process.env.TERMUX_VERSION || ""} (${arch})`;
     }
     return `${platform} ${release} (${arch})`;
   })();

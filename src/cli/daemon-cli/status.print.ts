@@ -2,6 +2,7 @@ import { resolveControlUiLinks } from "../../commands/onboard-helpers.js";
 import {
   resolveGatewayLaunchAgentLabel,
   resolveGatewaySystemdServiceName,
+  resolveGatewayTermuxServiceName,
 } from "../../daemon/constants.js";
 import { renderGatewayServiceCleanupHints } from "../../daemon/inspect.js";
 import { resolveGatewayLogPaths } from "../../daemon/launchd.js";
@@ -9,6 +10,7 @@ import {
   isSystemdUnavailableDetail,
   renderSystemdUnavailableHints,
 } from "../../daemon/systemd-hints.js";
+import { isTermux } from "../../infra/termux.js";
 import { isWSLEnv } from "../../infra/wsl.js";
 import { getResolvedLoggerSettings } from "../../logging.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -276,11 +278,22 @@ export function printDaemonStatus(status: DaemonStatus, opts: { json: boolean })
       defaultRuntime.error(`${errorText("Last gateway error:")} ${status.lastError}`);
     }
     if (process.platform === "linux") {
-      const env = (service.command?.environment ?? process.env) as NodeJS.ProcessEnv;
-      const unit = resolveGatewaySystemdServiceName(env.OPENCLAW_PROFILE);
-      defaultRuntime.error(
-        errorText(`Logs: journalctl --user -u ${unit}.service -n 200 --no-pager`),
-      );
+      if (isTermux()) {
+        const env = (service.command?.environment ?? process.env) as NodeJS.ProcessEnv;
+        const unit = resolveGatewayTermuxServiceName(env.OPENCLAW_PROFILE);
+        defaultRuntime.error(errorText(`Logs: sv status ${unit}`));
+        defaultRuntime.error(
+          errorText(
+            `Logs: tail -f /data/data/com.termux/files/home/.openclaw/logs/${unit}/current`,
+          ),
+        );
+      } else {
+        const env = (service.command?.environment ?? process.env) as NodeJS.ProcessEnv;
+        const unit = resolveGatewaySystemdServiceName(env.OPENCLAW_PROFILE);
+        defaultRuntime.error(
+          errorText(`Logs: journalctl --user -u ${unit}.service -n 200 --no-pager`),
+        );
+      }
     } else if (process.platform === "darwin") {
       const logs = resolveGatewayLogPaths(
         (service.command?.environment ?? process.env) as NodeJS.ProcessEnv,
