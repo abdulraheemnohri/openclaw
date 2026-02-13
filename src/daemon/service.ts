@@ -1,4 +1,6 @@
 import type { GatewayServiceRuntime } from "./service-runtime.js";
+import { isTermux } from "../infra/termux.js";
+import { resolveGatewayTermuxServiceName } from "./constants.js";
 import {
   installLaunchAgent,
   isLaunchAgentLoaded,
@@ -26,6 +28,15 @@ import {
   stopSystemdService,
   uninstallSystemdService,
 } from "./systemd.js";
+import {
+  installTermuxService,
+  isTermuxServiceEnabled,
+  readTermuxServiceCommand,
+  readTermuxServiceRuntime,
+  restartTermuxService,
+  stopTermuxService,
+  uninstallTermuxService,
+} from "./termux.js";
 
 export type GatewayServiceInstallArgs = {
   env: Record<string, string | undefined>;
@@ -63,6 +74,10 @@ export type GatewayService = {
   readRuntime: (env: Record<string, string | undefined>) => Promise<GatewayServiceRuntime>;
 };
 
+function resolveTermuxServiceName(env: Record<string, string | undefined>): string {
+  return env.OPENCLAW_TERMUX_SERVICE || resolveGatewayTermuxServiceName(env.OPENCLAW_PROFILE);
+}
+
 export function resolveGatewayService(): GatewayService {
   if (process.platform === "darwin") {
     return {
@@ -94,6 +109,40 @@ export function resolveGatewayService(): GatewayService {
   }
 
   if (process.platform === "linux") {
+    if (isTermux()) {
+      return {
+        label: "termux-services",
+        loadedText: "enabled",
+        notLoadedText: "disabled",
+        install: async (args) => {
+          await installTermuxService({
+            name: resolveTermuxServiceName(args.env),
+            programArguments: args.programArguments,
+            environment: args.environment as Record<string, string>,
+            stdout: args.stdout,
+          });
+        },
+        uninstall: async (args) => {
+          await uninstallTermuxService({
+            name: resolveTermuxServiceName(args.env),
+            stdout: args.stdout,
+          });
+        },
+        stop: async (args) => {
+          await stopTermuxService({
+            name: resolveTermuxServiceName(args.env ?? {}),
+          });
+        },
+        restart: async (args) => {
+          await restartTermuxService({
+            name: resolveTermuxServiceName(args.env ?? {}),
+          });
+        },
+        isLoaded: async (args) => isTermuxServiceEnabled(resolveTermuxServiceName(args.env ?? {})),
+        readCommand: (env) => readTermuxServiceCommand(resolveTermuxServiceName(env)),
+        readRuntime: (env) => readTermuxServiceRuntime(resolveTermuxServiceName(env)),
+      };
+    }
     return {
       label: "systemd",
       loadedText: "enabled",

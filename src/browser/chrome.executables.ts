@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ResolvedBrowserConfig } from "./config.js";
+import { isTermux } from "../infra/termux.js";
 
 export type BrowserExecutable = {
   kind: "brave" | "canary" | "chromium" | "chrome" | "custom" | "edge";
@@ -521,6 +522,14 @@ export function findChromeExecutableLinux(): BrowserExecutable | null {
     { kind: "chromium", path: "/usr/bin/chromium-browser" },
     { kind: "chromium", path: "/snap/bin/chromium" },
   ];
+
+  if (isTermux()) {
+    const prefix = process.env.PREFIX || "/data/data/com.termux/files/usr";
+    candidates.unshift({
+      kind: "chromium",
+      path: path.join(prefix, "bin", "chromium"),
+    });
+  }
 
   return findFirstExecutable(candidates);
 }

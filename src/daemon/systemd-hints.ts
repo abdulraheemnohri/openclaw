@@ -1,4 +1,5 @@
 import { formatCliCommand } from "../cli/command-format.js";
+import { isTermux } from "../infra/termux.js";
 
 export function isSystemdUnavailableDetail(detail?: string): boolean {
   if (!detail) {
@@ -14,7 +15,17 @@ export function isSystemdUnavailableDetail(detail?: string): boolean {
   );
 }
 
-export function renderSystemdUnavailableHints(options: { wsl?: boolean } = {}): string[] {
+export function renderSystemdUnavailableHints(
+  options: { wsl?: boolean; termux?: boolean } = {},
+): string[] {
+  const termux = options.termux ?? isTermux();
+  if (termux) {
+    return [
+      "Termux does not support systemd.",
+      "Install termux-services for background support: pkg install termux-services",
+      "Then run the install command again, or use pm2/tmux to keep the process running.",
+    ];
+  }
   if (options.wsl) {
     return [
       "WSL2 needs systemd enabled: edit /etc/wsl.conf with [boot]\\nsystemd=true",

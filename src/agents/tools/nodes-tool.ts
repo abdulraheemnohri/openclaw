@@ -36,6 +36,12 @@ const NODES_TOOL_ACTIONS = [
   "camera_clip",
   "screen_record",
   "location_get",
+  "sms_send",
+  "sms_list",
+  "battery_get",
+  "wifi_get",
+  "telephony_get",
+  "torch_set",
   "run",
   "invoke",
 ] as const;
@@ -44,6 +50,7 @@ const NOTIFY_PRIORITIES = ["passive", "active", "timeSensitive"] as const;
 const NOTIFY_DELIVERIES = ["system", "overlay", "auto"] as const;
 const CAMERA_FACING = ["front", "back", "both"] as const;
 const LOCATION_ACCURACY = ["coarse", "balanced", "precise"] as const;
+const SMS_TYPE = ["all", "inbox", "sent", "draft", "outbox"] as const;
 
 // Flattened schema: runtime validates per-action requirements.
 const NodesToolSchema = Type.Object({
@@ -78,6 +85,15 @@ const NodesToolSchema = Type.Object({
   maxAgeMs: Type.Optional(Type.Number()),
   locationTimeoutMs: Type.Optional(Type.Number()),
   desiredAccuracy: optionalStringEnum(LOCATION_ACCURACY),
+  // sms_send
+  number: Type.Optional(Type.String()),
+  message: Type.Optional(Type.String()),
+  // sms_list
+  limit: Type.Optional(Type.Number()),
+  offset: Type.Optional(Type.Number()),
+  smsType: optionalStringEnum(SMS_TYPE),
+  // torch_set
+  enabled: Type.Optional(Type.Boolean()),
   // run
   command: Type.Optional(Type.Array(Type.String())),
   cwd: Type.Optional(Type.String()),
@@ -386,6 +402,78 @@ export function createNodesTool(options?: {
               idempotencyKey: crypto.randomUUID(),
             });
             return jsonResult(raw?.payload ?? {});
+          }
+          case "sms_send": {
+            const node = readStringParam(params, "node", { required: true });
+            const number = readStringParam(params, "number", { required: true });
+            const message = readStringParam(params, "message", { required: true });
+            const nodeId = await resolveNodeId(gatewayOpts, node);
+            await callGatewayTool("node.invoke", gatewayOpts, {
+              nodeId,
+              command: "sms.send",
+              params: { number, message },
+              idempotencyKey: crypto.randomUUID(),
+            });
+            return jsonResult({ ok: true });
+          }
+          case "sms_list": {
+            const node = readStringParam(params, "node", { required: true });
+            const nodeId = await resolveNodeId(gatewayOpts, node);
+            const limit = typeof params.limit === "number" ? params.limit : undefined;
+            const offset = typeof params.offset === "number" ? params.offset : undefined;
+            const type = typeof params.smsType === "string" ? params.smsType : undefined;
+            const raw = await callGatewayTool<{ payload: unknown }>("node.invoke", gatewayOpts, {
+              nodeId,
+              command: "sms.list",
+              params: { limit, offset, number: params.number, type },
+              idempotencyKey: crypto.randomUUID(),
+            });
+            return jsonResult(raw?.payload ?? []);
+          }
+          case "battery_get": {
+            const node = readStringParam(params, "node", { required: true });
+            const nodeId = await resolveNodeId(gatewayOpts, node);
+            const raw = await callGatewayTool<{ payload: unknown }>("node.invoke", gatewayOpts, {
+              nodeId,
+              command: "battery.get",
+              params: {},
+              idempotencyKey: crypto.randomUUID(),
+            });
+            return jsonResult(raw?.payload ?? {});
+          }
+          case "wifi_get": {
+            const node = readStringParam(params, "node", { required: true });
+            const nodeId = await resolveNodeId(gatewayOpts, node);
+            const raw = await callGatewayTool<{ payload: unknown }>("node.invoke", gatewayOpts, {
+              nodeId,
+              command: "wifi.get",
+              params: {},
+              idempotencyKey: crypto.randomUUID(),
+            });
+            return jsonResult(raw?.payload ?? {});
+          }
+          case "telephony_get": {
+            const node = readStringParam(params, "node", { required: true });
+            const nodeId = await resolveNodeId(gatewayOpts, node);
+            const raw = await callGatewayTool<{ payload: unknown }>("node.invoke", gatewayOpts, {
+              nodeId,
+              command: "telephony.get",
+              params: {},
+              idempotencyKey: crypto.randomUUID(),
+            });
+            return jsonResult(raw?.payload ?? {});
+          }
+          case "torch_set": {
+            const node = readStringParam(params, "node", { required: true });
+            const enabled = typeof params.enabled === "boolean" ? params.enabled : true;
+            const nodeId = await resolveNodeId(gatewayOpts, node);
+            await callGatewayTool("node.invoke", gatewayOpts, {
+              nodeId,
+              command: "torch.set",
+              params: { enabled },
+              idempotencyKey: crypto.randomUUID(),
+            });
+            return jsonResult({ ok: true });
           }
           case "run": {
             const node = readStringParam(params, "node", { required: true });
