@@ -46,7 +46,18 @@ import { detectMime } from "../media/mime.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
-import { termuxCameraList, termuxCameraSnap, termuxLocationGet, termuxNotify } from "./termux.js";
+import {
+  termuxBatteryStatus,
+  termuxCameraList,
+  termuxCameraSnap,
+  termuxLocationGet,
+  termuxNotify,
+  termuxSmsList,
+  termuxSmsSend,
+  termuxTelephonyDeviceInfo,
+  termuxTorch,
+  termuxWifiConnectionInfo,
+} from "./termux.js";
 import { withTimeout } from "./with-timeout.js";
 
 type NodeHostRunOptions = {
@@ -586,8 +597,28 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
   ];
 
   if (isTermuxHost) {
-    caps.push("camera", "location", "notifications");
-    commands.push("system.notify", "camera.snap", "camera.list", "location.get");
+    caps.push(
+      "camera",
+      "location",
+      "notifications",
+      "sms",
+      "battery",
+      "wifi",
+      "telephony",
+      "torch",
+    );
+    commands.push(
+      "system.notify",
+      "camera.snap",
+      "camera.list",
+      "location.get",
+      "sms.send",
+      "sms.list",
+      "battery.get",
+      "wifi.get",
+      "telephony.get",
+      "torch.set",
+    );
   }
 
   const client = new GatewayClient({
@@ -650,6 +681,92 @@ async function handleInvoke(
     try {
       const params = decodeParams<{ title?: string; body?: string }>(frame.paramsJSON);
       await termuxNotify({ title: params.title, body: params.body });
+      await sendInvokeResult(client, frame, { ok: true });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "sms.send") {
+    try {
+      const params = decodeParams<{ number: string; message: string }>(frame.paramsJSON);
+      await termuxSmsSend(params);
+      await sendInvokeResult(client, frame, { ok: true });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "sms.list") {
+    try {
+      const params = decodeParams<{
+        limit?: number;
+        offset?: number;
+        number?: string;
+        type?: "all" | "inbox" | "sent" | "draft" | "outbox";
+      }>(frame.paramsJSON);
+      const payload = await termuxSmsList(params);
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "battery.get") {
+    try {
+      const payload = await termuxBatteryStatus();
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "wifi.get") {
+    try {
+      const payload = await termuxWifiConnectionInfo();
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "telephony.get") {
+    try {
+      const payload = await termuxTelephonyDeviceInfo();
+      await sendInvokeResult(client, frame, { ok: true, payload });
+    } catch (err) {
+      await sendInvokeResult(client, frame, {
+        ok: false,
+        error: { code: "INVALID_REQUEST", message: String(err) },
+      });
+    }
+    return;
+  }
+
+  if (isTermux() && command === "torch.set") {
+    try {
+      const params = decodeParams<{ enabled: boolean }>(frame.paramsJSON);
+      await termuxTorch(params.enabled);
       await sendInvokeResult(client, frame, { ok: true });
     } catch (err) {
       await sendInvokeResult(client, frame, {

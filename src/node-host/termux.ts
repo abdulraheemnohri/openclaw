@@ -62,3 +62,52 @@ export async function termuxLocationGet(params: {
   const { stdout } = await execFileAsync("termux-location", args);
   return JSON.parse(stdout);
 }
+
+export async function termuxSmsSend(params: { number: string; message: string }) {
+  await execFileAsync("termux-sms-send", ["-n", params.number, params.message]);
+  return { ok: true };
+}
+
+export async function termuxSmsList(params: {
+  limit?: number;
+  offset?: number;
+  number?: string;
+  type?: "all" | "inbox" | "sent" | "draft" | "outbox";
+}) {
+  const args = [];
+  if (params.limit) {
+    args.push("-l", String(params.limit));
+  }
+  if (params.offset) {
+    args.push("-o", String(params.offset));
+  }
+  if (params.number) {
+    args.push("-n", params.number);
+  }
+  if (params.type) {
+    args.push("-d", params.type);
+  }
+
+  const { stdout } = await execFileAsync("termux-sms-list", args);
+  return JSON.parse(stdout);
+}
+
+export async function termuxBatteryStatus() {
+  const { stdout } = await execFileAsync("termux-battery-status", []);
+  return JSON.parse(stdout);
+}
+
+export async function termuxWifiConnectionInfo() {
+  const { stdout } = await execFileAsync("termux-wifi-connectioninfo", []);
+  return JSON.parse(stdout);
+}
+
+export async function termuxTelephonyDeviceInfo() {
+  const { stdout } = await execFileAsync("termux-telephony-deviceinfo", []);
+  return JSON.parse(stdout);
+}
+
+export async function termuxTorch(enabled: boolean) {
+  await execFileAsync("termux-torch", [enabled ? "on" : "off"]);
+  return { ok: true };
+}
